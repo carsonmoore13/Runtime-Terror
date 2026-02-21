@@ -42,8 +42,6 @@ export default function GeothermalGlobe() {
   const [showBoundaries, setShowBoundaries] = useState(true);
   const [showSidebar, setShowSidebar] = useState(true);
   const [selected, setSelected] = useState(null);
-  const [aiReport, setAiReport] = useState('');
-  const [loadingAI, setLoadingAI] = useState(false);
   const [viewState, setViewState] = useState(INITIAL_VIEW_STATE);
 
   useEffect(() => {
@@ -71,7 +69,6 @@ export default function GeothermalGlobe() {
 
   const selectPoint = useCallback((point) => {
     setSelected(point);
-    setAiReport('');
   }, []);
 
   // Find nearest data point to a clicked map coordinate
@@ -96,52 +93,6 @@ export default function GeothermalGlobe() {
     },
     [data, selectPoint]
   );
-
-  const generateReport = useCallback(async () => {
-    if (!selected) return;
-    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      setAiReport('Add VITE_ANTHROPIC_API_KEY to .env to enable AI reports.');
-      return;
-    }
-
-    setLoadingAI(true);
-    setAiReport('');
-    const [lon, lat] = selected.coordinates;
-
-    try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 220,
-          messages: [
-            {
-              role: 'user',
-              content: `You are a geothermal energy expert. In exactly 3 concise sentences, give a sharp economic investment assessment for this potential plant site. Be specific and quantitative.
-
-Location: ${lat.toFixed(3)}°N, ${lon.toFixed(3)}°E
-Heat flow: ${selected.hf} mW/m²  (global avg ~65 mW/m²; commercial threshold ~80 mW/m²)
-Distance to nearest plate boundary: ${selected.bd} km
-Composite viability score: ${selected.score}/1.00`,
-            },
-          ],
-        }),
-      });
-      const json = await res.json();
-      setAiReport(json.content?.[0]?.text ?? 'No response received.');
-    } catch {
-      setAiReport('Error contacting Claude API. Check console for details.');
-    } finally {
-      setLoadingAI(false);
-    }
-  }, [selected]);
 
   const layers = useMemo(() => {
     const basemap = new TileLayer({
@@ -360,7 +311,7 @@ Composite viability score: ${selected.score}/1.00`,
           <StatRow label="Plate boundary" value={selected.bd != null ? `${selected.bd} km` : '—'} />
 
           {/* Score bar */}
-          <div style={{ marginTop: 10, marginBottom: 12 }}>
+          <div style={{ marginTop: 10 }}>
             <div style={{ height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.08)' }}>
               <div
                 style={{
@@ -373,44 +324,6 @@ Composite viability score: ${selected.score}/1.00`,
               />
             </div>
           </div>
-
-          <button
-            onClick={generateReport}
-            disabled={loadingAI}
-            style={{
-              width: '100%',
-              padding: '8px 0',
-              background: loadingAI ? 'rgba(249,115,22,0.3)' : '#f97316',
-              color: '#fff',
-              border: 'none',
-              borderRadius: 4,
-              cursor: loadingAI ? 'wait' : 'pointer',
-              fontSize: 11,
-              fontFamily: 'inherit',
-              fontWeight: 'bold',
-              letterSpacing: 1,
-              transition: 'background 0.15s',
-            }}
-          >
-            {loadingAI ? 'GENERATING…' : '✦ AI SITE REPORT'}
-          </button>
-
-          {aiReport && (
-            <div
-              style={{
-                marginTop: 10,
-                padding: '9px 10px',
-                background: 'rgba(255,255,255,0.04)',
-                borderRadius: 4,
-                fontSize: 11,
-                lineHeight: 1.65,
-                color: '#bbb',
-                borderLeft: '2px solid #f97316',
-              }}
-            >
-              {aiReport}
-            </div>
-          )}
         </div>
       )}
     </div>

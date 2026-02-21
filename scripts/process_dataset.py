@@ -92,11 +92,32 @@ print(f"Exported {len(top_sites)} top sites")
 # ── 7. Plate boundary paths for PathLayer ─────────────────────────────────────
 # Group consecutive same-plate rows into path segments
 boundaries_raw = pd.read_csv('datasets/all.csv')
-segments = defaultdict(list)
-for _, row in boundaries_raw.dropna(subset=['lat', 'lon']).iterrows():
-    segments[row['plate']].append([round(float(row['lon']), 4), round(float(row['lat']), 4)])
+# Split into segments at plate-name changes OR large geographic jumps.
+# Without this, one path per plate draws long "stitch" lines across the map.
+MAX_GAP_DEG = 5
+segments = []
+current_seg = []
+prev_plate = None
+prev_lat = prev_lon = None
 
-boundary_paths = [{'plate': plate, 'path': pts} for plate, pts in segments.items()]
+for _, row in boundaries_raw.dropna(subset=['lat', 'lon']).iterrows():
+    plate = row['plate']
+    lat, lon = float(row['lat']), float(row['lon'])
+
+    if prev_plate is not None:
+        gap = ((lat - prev_lat) ** 2 + (lon - prev_lon) ** 2) ** 0.5
+        if plate != prev_plate or gap > MAX_GAP_DEG:
+            if len(current_seg) >= 2:
+                segments.append({'plate': prev_plate, 'path': current_seg})
+            current_seg = []
+
+    current_seg.append([round(lon, 4), round(lat, 4)])
+    prev_plate, prev_lat, prev_lon = plate, lat, lon
+
+if len(current_seg) >= 2:
+    segments.append({'plate': prev_plate, 'path': current_seg})
+
+boundary_paths = segments
 
 with open('public/plate_boundaries.json', 'w') as f:
     json.dump(boundary_paths, f, separators=(',', ':'))

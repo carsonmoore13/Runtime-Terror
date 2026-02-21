@@ -1,9 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import DeckGL from '@deck.gl/react';
 import { BitmapLayer } from '@deck.gl/layers';
 import { HeatmapLayer } from '@deck.gl/aggregation-layers';
 import { TileLayer } from '@deck.gl/geo-layers';
-import geothermalHotspots from './geothermal_hotspots.json';
 
 const INITIAL_VIEW_STATE = {
   longitude: 0,
@@ -25,6 +24,14 @@ const COLOR_RANGE = [
 ];
 
 export default function GeothermalGlobe() {
+  const [data, setData] = useState([]);
+
+  useEffect(() => {
+    fetch('/geothermal_data.json')
+      .then((res) => res.json())
+      .then((json) => setData(json));
+  }, []);
+
   const layers = useMemo(() => {
     const basemapLayer = new TileLayer({
       id: 'dark-basemap-layer',
@@ -47,7 +54,7 @@ export default function GeothermalGlobe() {
     // Heatmap layer styling aligned with the deck.gl heatmap example look.
     const geothermalHeatmapLayer = new HeatmapLayer({
       id: 'geothermal-heatmap-layer',
-      data: geothermalHotspots,
+      data,
       getPosition: (d) => d.coordinates,
       getWeight: (d) => d.score,
       radiusPixels: 60,
@@ -57,7 +64,7 @@ export default function GeothermalGlobe() {
     });
 
     return [basemapLayer, geothermalHeatmapLayer];
-  }, []);
+  }, [data]);
 
   return (
     <DeckGL
